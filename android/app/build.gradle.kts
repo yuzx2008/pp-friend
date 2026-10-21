@@ -1,7 +1,24 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// 正式签名的 keystore 路径与口令，从 `android/key.properties` 读（**不在仓库里**，
+// `.gitignore` 挡着）。文件由构建脚本从仓库外一份 600 的文件拷进来；上游 CI 和
+// 本地 `flutter run` 都没有这个文件，那就走下面的回落。
+//
+// 为什么必须固定一个签名：原来 release 借用 debug keystore，而那份 keystore
+// 是在构建容器的 `$HOME` 里**现生成**的 —— 每次构建都是一个新密钥，于是包与包
+// 之间**装不上**（Android 只认同一个签名证书的升级，签名不一致只能先卸载，
+// 用户数据一起没）。
+val keyPropertiesFile = rootProject.file("key.properties")
+val keyProperties = Properties()
+if (keyPropertiesFile.exists()) {
+    FileInputStream(keyPropertiesFile).use { keyProperties.load(it) }
 }
 
 android {
@@ -52,11 +69,28 @@ android {
         }
     }
 
+    // **有 key.properties 才建这个签名配置。** 没有它 `signingConfigs.getByName("release")`
+    // 会直接抛，仓库一到别人的 CI 上就构建不了 —— 上游 CI 出的包一直是 debug
+    // 签名的，不能因为我们本地要正式签名就把那条路弄坏。
+    signingConfigs {
+        if (keyPropertiesFile.exists()) {
+            create("release") {
+                storeFile = file(keyProperties.getProperty("storeFile"))
+                storePassword = keyProperties.getProperty("storePassword")
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 没有正式密钥就照旧借 debug 签名，`flutter run --release` 还能用。
+            signingConfig = if (keyPropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
 
             // **必须显式关掉：release 走 R8 会把这个包装不起来。**
             // AGP 9 起 release 默认 minifyEnabled=true、shrinkResources=true
