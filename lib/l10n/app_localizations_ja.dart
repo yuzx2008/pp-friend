@@ -241,7 +241,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get externalConfigHint =>
-      '設定は /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json に書いてもよく、アプリ起動時に自動で読み込む';
+      'ファイルから設定を読み込むこともできます。Download など選べる場所に置いてください';
+
+  @override
+  String get importConfigAction => 'ファイルから設定を読み込む';
+
+  @override
+  String get importConfigDone => '設定を読み込みました';
 
   @override
   String externalConfigFailed(String problem) {

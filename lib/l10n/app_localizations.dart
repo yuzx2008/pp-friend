@@ -529,8 +529,20 @@ abstract class AppLocalizations {
   /// No description provided for @externalConfigHint.
   ///
   /// In zh, this message translates to:
-  /// **'也可以把配置写到 /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json，App 启动时自动读取'**
+  /// **'也可以从文件导入配置；文件放在 Download 等你能选到的位置即可'**
   String get externalConfigHint;
+
+  /// No description provided for @importConfigAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'从文件导入配置'**
+  String get importConfigAction;
+
+  /// No description provided for @importConfigDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置已导入'**
+  String get importConfigDone;
 
   /// No description provided for @externalConfigFailed.
   ///

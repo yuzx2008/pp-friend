@@ -71,7 +71,9 @@
   "brainIdHint": "e.g. Employee 3. A meaningful name, just like the profile name",
   "tokenLabel": "Bearer token",
   "tokenHint": "Leave empty if the deployment has no auth; the header will not be sent",
-  "externalConfigHint": "You can also put the config in /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json; the app reads it on startup",
+  "externalConfigHint": "You can also import the config from a file; keeping it in Download or anywhere you can pick is fine",
+  "importConfigAction": "Import config from file",
+  "importConfigDone": "Config imported",
   "externalConfigFailed": "Couldn't read the config file: {problem}",
   "@externalConfigFailed": {
     "placeholders": {

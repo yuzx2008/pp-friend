@@ -12,6 +12,7 @@ import 'package:pp_friend/src/config/config_store.dart';
 import 'package:pp_friend/src/config/external_config.dart';
 import 'package:pp_friend/src/conversation/conversation_controller.dart';
 import 'package:pp_friend/src/storage/memory_message_store.dart';
+import 'package:pp_friend/src/ui/profile_editor.dart';
 import 'package:pp_friend/src/ui/settings_page.dart';
 
 import 'support/avatar_fakes.dart';
@@ -89,6 +90,37 @@ Future<void> _scrollTo(WidgetTester tester, Finder target) async {
     await tester.pumpAndSettle();
   }
   expect(target, findsOneWidget);
+}
+
+/// 直接跑编辑器本身（不经过设置页）：导入按钮就长在这个档案的 Brain 段里，
+/// 手上有 controller 和档案就够了，不用把文件选择器一路从设置页透传下来。
+Future<void> _pumpEditor(
+  WidgetTester tester,
+  ConversationController controller,
+  ConfigFilePicker pickConfig,
+) async {
+  await tester.pumpWidget(
+    testApp(
+      Scaffold(
+        body: ProfileEditor(
+          controller: controller,
+          profile: controller.config.profiles.first,
+          pickConfig: pickConfig,
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// 按下「从文件导入配置」那个按钮。它在 Brain 段末尾，先滚到它。
+Future<void> _tapImport(WidgetTester tester) async {
+  final button = find.text('从文件导入配置');
+  await _scrollTo(tester, button);
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
+  await tester.tap(button);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -292,15 +324,103 @@ void main() {
       expect(find.textContaining('配置文件读不出来：'), findsNothing);
     });
 
-    testWidgets('Brain 段下面写着那个固定路径', (tester) async {
+    testWidgets('Brain 段下面写着"可以从文件导入、文件放哪儿都行"', (tester) async {
       final controller = await _boot(_reader(null));
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(testApp(SettingsPage(controller: controller)));
       await tester.pumpAndSettle();
 
-      // 文案里得报出完整路径，不然用户不知道该把文件放哪儿
-      await _scrollTo(tester, find.textContaining(externalConfigFileName));
+      // **不再报那个固定路径**：它在 Android/data/<包名>/files/ 下面，用户
+      // 既看不见也放不进去，写着它只会让人白折腾一场。现在只说"放你能选到的
+      // 地方"，入口是下面那个按钮。
+      await _scrollTo(tester, find.textContaining('也可以从文件导入配置'));
+      expect(find.textContaining(externalConfigFileName), findsNothing);
+      expect(find.textContaining('Download'), findsOneWidget);
+      expect(
+        find.widgetWithText(OutlinedButton, '从文件导入配置'),
+        findsOneWidget,
+        reason: '说明文案旁边就是那个入口',
+      );
+    });
+  });
+
+  group('从文件导入（手动点一下）', () {
+    testWidgets('选到一份合法的文件 → 三个框填上文件里的值，并且当场落盘', (tester) async {
+      final controller = await _boot(_reader(null));
+      addTearDown(controller.dispose);
+
+      await _pumpEditor(tester, controller, () async => _fileBody());
+      await _tapImport(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('https://pp1.example'), findsOneWidget, reason: '框里得看得见');
+      expect(find.text('codex'), findsOneWidget);
+      expect(find.text('dummy-token'), findsOneWidget);
+      expect(find.text('配置已导入'), findsOneWidget);
+
+      expect(controller.config.brain.baseUrl, 'https://pp1.example');
+      // "并落盘"：换一个 store 从同一份盘上读回来，值是文件里的。
+      // 只改了内存的话，重启 App 就回到旧地址了。
+      final reloaded = await ConfigStore().load();
+      expect(reloaded.brain.baseUrl, 'https://pp1.example');
+      expect(reloaded.brain.brainId, 'codex');
+      expect(reloaded.brain.token, 'dummy-token');
+    });
+
+    testWidgets('坏 JSON → 只提示，不崩也不动屏幕上的值', (tester) async {
+      final controller = await _boot(_reader(null));
+      addTearDown(controller.dispose);
+
+      await _pumpEditor(tester, controller, () async => '{ 这不是 json');
+      await _tapImport(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('配置文件读不出来：'), findsOneWidget);
+      expect(find.text('http://本地:8000'), findsOneWidget, reason: '值一个都不该动');
+      expect(controller.config.brain.baseUrl, 'http://本地:8000');
+    });
+
+    testWidgets('缺 base_url → 按错误处理，不许拿空值盖掉手填的地址', (tester) async {
+      final controller = await _boot(_reader(null));
+      addTearDown(controller.dispose);
+
+      await _pumpEditor(tester, controller, () async => _fileBody(baseUrl: null));
+      await _tapImport(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('base_url 缺失'), findsOneWidget);
+      expect(controller.config.brain.baseUrl, 'http://本地:8000');
+      expect((await ConfigStore().load()).brain.baseUrl, 'http://本地:8000');
+    });
+
+    testWidgets('用户在选择器里取消 → 什么都不发生', (tester) async {
+      final controller = await _boot(_reader(null));
+      addTearDown(controller.dispose);
+
+      await _pumpEditor(tester, controller, () async => null);
+      await _tapImport(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('配置文件读不出来：'), findsNothing);
+      expect(find.text('配置已导入'), findsNothing);
+      expect(controller.config.brain.baseUrl, 'http://本地:8000');
+    });
+
+    testWidgets('文件读字节就失败（不是 UTF-8）→ 提示，不崩', (tester) async {
+      final controller = await _boot(_reader(null));
+      addTearDown(controller.dispose);
+
+      await _pumpEditor(
+        tester,
+        controller,
+        () async => throw const FormatException('Unexpected end of input'),
+      );
+      await _tapImport(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('配置文件读不出来：'), findsOneWidget);
+      expect(controller.config.brain.baseUrl, 'http://本地:8000');
     });
   });
 }

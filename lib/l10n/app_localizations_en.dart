@@ -249,7 +249,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get externalConfigHint =>
-      'You can also put the config in /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json; the app reads it on startup';
+      'You can also import the config from a file; keeping it in Download or anywhere you can pick is fine';
+
+  @override
+  String get importConfigAction => 'Import config from file';
+
+  @override
+  String get importConfigDone => 'Config imported';
 
   @override
   String externalConfigFailed(String problem) {

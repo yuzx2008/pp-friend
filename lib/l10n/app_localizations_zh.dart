@@ -237,8 +237,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tokenHint => '留空表示该部署没启用鉴权，不会发这个头';
 
   @override
-  String get externalConfigHint =>
-      '也可以把配置写到 /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json，App 启动时自动读取';
+  String get externalConfigHint => '也可以从文件导入配置；文件放在 Download 等你能选到的位置即可';
+
+  @override
+  String get importConfigAction => '从文件导入配置';
+
+  @override
+  String get importConfigDone => '配置已导入';
 
   @override
   String externalConfigFailed(String problem) {

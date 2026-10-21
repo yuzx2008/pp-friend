@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../config/assistant_config.dart';
+import '../config/external_config.dart';
 import '../conversation/conversation_controller.dart';
 import 'widgets/settings_widgets.dart';
 
@@ -22,12 +23,16 @@ class ProfileEditor extends StatefulWidget {
     super.key,
     required this.controller,
     required this.profile,
+    this.pickConfig = pickConfigFile,
   });
 
   final ConversationController controller;
 
   /// 正在编辑的档案。**以父级从配置里现取的那一份为准**，不要缓存。
   final Profile profile;
+
+  /// 从哪儿拿"用户挑的那个配置文件"。默认弹系统选择器，测试注入一份字符串。
+  final ConfigFilePicker pickConfig;
 
   @override
   State<ProfileEditor> createState() => ProfileEditorState();
@@ -220,6 +225,69 @@ class ProfileEditorState extends State<ProfileEditor> {
     return path == null ? null : FileImage(File(path));
   }
 
+  // ------------------------------------------------------------ 从文件导入
+
+  /// 让用户挑一个配置文件，把里面的 brain 配置填进这一屏并落盘。
+  ///
+  /// **这是"部署方给一份配置、装上就能用"的主路径。** 文件放哪儿由用户自己
+  /// 挑：Download、Documents、微信/QQ 的下载目录，随便哪儿都行 ——
+  /// 用的是系统文件选择器，没有目录约定。
+  ///
+  /// 之所以不能只靠"启动时自动读那个固定文件"：它在
+  /// `Android/data/<包名>/files/` 下面，Android 11 起**这个目录 adb 和多数
+  /// 文件管理器都写不进去**（`secure_mkdirs failed: Operation not permitted`），
+  /// 目录本身甚至可能还不存在 —— 对普通用户来说那是个"看不见也够不着"的地方。
+  /// 那条路留给用 adb 部署的人，代码保留，但界面上不再提它。
+  ///
+  /// 导入完就**记住**了（落盘进配置），以后启动直接用记住的值：那份文件
+  /// 不必一直在，也不必还放在原地。
+  ///
+  /// 落到**正在编辑的这个档案**上（只有一个档案时它就是聚焦的那个，与启动
+  /// 时那条路的行为一致）：按钮就长在这个档案的 Brain 段里，写去别的档案的
+  /// 话用户会看到"按了没反应"。
+  Future<void> _importConfigFile() async {
+    final l10n = _l10n;
+
+    final String? raw;
+    try {
+      raw = await widget.pickConfig();
+    } catch (e) {
+      // 读字节就失败了（文件被删了、不是 UTF-8）。和解析失败一样只是
+      // "这份文件用不了"，屏幕上的值一个都不该动。
+      _toast(l10n.externalConfigFailed('$e'));
+      return;
+    }
+    if (raw == null) return; // 用户取消了，什么都不做
+
+    // 解析跟启动时那条路共用一份实现（`parseExternalConfig`）。
+    final read = parseExternalConfig(raw);
+    final brain = read.brain;
+    if (brain == null) {
+      _toast(l10n.externalConfigFailed(read.problem ?? ''));
+      return;
+    }
+
+    // 先填进输入框再落盘：`commit()` 写的就是这三个框里的内容，同时用户
+    // 当场看得见文件里的值确实进来了 —— 只弹一句"已导入"而框里没变，
+    // 会被当成没生效，然后再手敲一遍。
+    setState(() {
+      _baseUrl.text = brain.baseUrl;
+      _brainId.text = brain.brainId;
+      _token.text = brain.token;
+    });
+
+    final bool written;
+    try {
+      written = await commit();
+    } catch (e) {
+      _toast(l10n.saveFailed('$e'));
+      return;
+    }
+    // 用一句明确的成功提示，而不是复用手填路径上那句"已保存"：从文件导入
+    // 是"一次性把一整套配置灌进来"，值得说清楚发生了什么。
+    _toast(written ? l10n.importConfigDone : l10n.profileGoneUnsaved);
+  }
+
   // ------------------------------------------------------------ 危险动作
 
   AppLocalizations get _l10n => AppLocalizations.of(context);
@@ -333,12 +401,22 @@ class ProfileEditorState extends State<ProfileEditor> {
               hint: l10n.tokenHint,
             ),
             const SizedBox(height: 8),
-            // 固定文件那条路是"部署方一次配好、所有人装上就能用"的入口，
-            // 所以它紧跟在三个输入框下面 —— 手填的人一眼看到还有这种填法。
+            // 从文件导入是"部署方一次配好、所有人装上就能用"的主路径 ——
+            // 文件放哪儿由用户自己挑（Download、Documents、随便哪儿），
+            // 所以它紧跟在三个输入框下面：手填的人一眼看到还有这种填法。
             Text(
               l10n.externalConfigHint,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _importConfigFile,
+                icon: const Icon(Icons.file_open_outlined, size: 18),
+                label: Text(l10n.importConfigAction),
               ),
             ),
           ],

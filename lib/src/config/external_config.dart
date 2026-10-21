@@ -1,12 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'brain_config.dart';
 
-/// 固定配置文件的名字。**手机上的说明文案里写着这个路径**，
-/// 改这里就要同时改三份 l10n 的 `externalConfigHint`。
+/// 固定配置文件的名字。
+///
+/// 这个"固定路径"是给**用 adb 部署**的人用的附加能力（`adb push` 到应用外部
+/// 目录，启动时自动读）。界面上**不再提它** —— 用户看不到也够不着
+/// `Android/data/<包名>/files/` 这种目录，主推的是设置页里那个
+/// 「从文件导入配置」按钮（[pickConfigFile]）。
 const String externalConfigFileName = 'pp-friend-config.json';
 
 /// 读固定外部配置文件的那一下。
@@ -17,6 +22,31 @@ typedef ExternalConfigReader = Future<ExternalConfigRead> Function();
 
 /// 拿 App 的外部目录（Android 上就是 `Android/data/<包名>/files`）。
 typedef ExternalDirResolver = Future<Directory?> Function();
+
+/// 让用户挑一个配置文件，返回文件的**全部内容**。用户取消返回 null。
+///
+/// 抽成类型是为了让 `flutter test` 能注入一份现成的字符串 ——
+/// 测试环境里没有平台通道，真去弹选择器只会抛。
+typedef ConfigFilePicker = Future<String?> Function();
+
+/// 默认实现：系统的文件选择器。用户把文件放在哪儿都行（Download、Documents、
+/// 微信/QQ 的下载目录……），没有目录约定。
+///
+/// **不按扩展名过滤。** 理由和导入声纹那条一样：一个文件算什么 MIME 是
+/// 提供方（本地存储、网盘 App……）说了算，按扩展名过滤会让文件在列表里
+/// 变灰点不动。是不是配置由内容说了算 —— 内容不对就报"读不出来"。
+///
+/// 这里只负责把字节读成字符串，**不做任何解析**：解析一律走
+/// [parseExternalConfig]，这样"从文件导入"和"启动时自动读"永远是同一套
+/// 规则，不会在"什么算合法"上分家。
+///
+/// 文件不是 UTF-8（比如从 PC 拷一份 GBK 的过来）时 `utf8.decode` 会抛
+/// `FormatException`，由调用方去提示 —— 这里不兜，兜了就得编一个原因出来。
+Future<String?> pickConfigFile() async {
+  final picked = await FilePicker.pickFile();
+  if (picked == null) return null;
+  return utf8.decode(await picked.readAsBytes());
+}
 
 /// 读固定配置文件的结果，三种：读到了、文件不在、读不出来。
 ///

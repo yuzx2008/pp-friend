@@ -101,7 +101,9 @@
   "brainIdHint": "例：社員3 ― 名前のように意味を持たせる",
   "tokenLabel": "Bearer token",
   "tokenHint": "空欄ならこのデプロイは認証なし。このヘッダーは送信されない",
-  "externalConfigHint": "設定は /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json に書いてもよく、アプリ起動時に自動で読み込む",
+  "externalConfigHint": "ファイルから設定を読み込むこともできます。Download など選べる場所に置いてください",
+  "importConfigAction": "ファイルから設定を読み込む",
+  "importConfigDone": "設定を読み込みました",
   "externalConfigFailed": "設定ファイルを読み込めません：{problem}",
   "@externalConfigFailed": {
     "placeholders": {
