@@ -57,6 +57,26 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // **必须显式关掉：release 走 R8 会把这个包装不起来。**
+            // AGP 9 起 release 默认 minifyEnabled=true、shrinkResources=true
+            // （本文件里没写过任何 minify/proguard 配置，仓库里也没有 proguard
+            // 文件，所以这是默认值不是我们要求的效果）。而 R8 会重命名类型：
+            // build/outputs/mapping/release/mapping.txt 里就有
+            // `kotlin.coroutines.Continuation -> i5`。
+            //
+            // 麻烦在于 shared_preferences_android 2.5 起改成了 JNIgen —— Dart 侧
+            // 是拿**未混淆的类名 + 方法签名**直接经 JNI 调 Kotlin 的
+            // （SharedPreferencesApiRegistrar.getAll(String, List, Continuation)）。
+            // 签名里的 Continuation 一改名，运行时按原名就找不到方法：
+            // NoSuchMethodError → 配置读写全挂 → 档案列表为空 → 配置页白屏。
+            //
+            // 选"关掉"而不是"补 keep 规则"：签名里任何一个类型被改名都会重演，
+            // 而 keep 规则得把每个 JNIgen 插件用到的类、方法、以及 Coroutine 那套
+            // 运行时类型全钉住，补不全就还是白屏；这个方法名和签名是 Dart 侧硬编码
+            // 的，改错了要到运行期才会发现。
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
