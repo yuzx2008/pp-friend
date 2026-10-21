@@ -248,6 +248,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Leave empty if the deployment has no auth; the header will not be sent';
 
   @override
+  String get externalConfigHint =>
+      'You can also put the config in /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json; the app reads it on startup';
+
+  @override
+  String externalConfigFailed(String problem) {
+    return 'Couldn\'t read the config file: $problem';
+  }
+
+  @override
   String get statusSection => 'Status';
 
   @override

@@ -526,6 +526,18 @@ abstract class AppLocalizations {
   /// **'留空表示该部署没启用鉴权，不会发这个头'**
   String get tokenHint;
 
+  /// No description provided for @externalConfigHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'也可以把配置写到 /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json，App 启动时自动读取'**
+  String get externalConfigHint;
+
+  /// No description provided for @externalConfigFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置文件读不出来：{problem}'**
+  String externalConfigFailed(String problem);
+
   /// No description provided for @statusSection.
   ///
   /// In zh, this message translates to:

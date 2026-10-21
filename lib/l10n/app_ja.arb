@@ -101,6 +101,13 @@
   "brainIdHint": "例：社員3 ― 名前のように意味を持たせる",
   "tokenLabel": "Bearer token",
   "tokenHint": "空欄ならこのデプロイは認証なし。このヘッダーは送信されない",
+  "externalConfigHint": "設定は /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json に書いてもよく、アプリ起動時に自動で読み込む",
+  "externalConfigFailed": "設定ファイルを読み込めません：{problem}",
+  "@externalConfigFailed": {
+    "placeholders": {
+      "problem": {"type": "String"}
+    }
+  },
   "statusSection": "状態",
   "enabled": "有効",
   "enabledSubtitleOn": "常にメッセージを受信する（フォーカス外ではテキストのみ記録し、音は出さない）",

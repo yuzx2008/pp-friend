@@ -240,6 +240,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get tokenHint => '空欄ならこのデプロイは認証なし。このヘッダーは送信されない';
 
   @override
+  String get externalConfigHint =>
+      '設定は /sdcard/Android/data/com.ppfriend.pp_friend/files/pp-friend-config.json に書いてもよく、アプリ起動時に自動で読み込む';
+
+  @override
+  String externalConfigFailed(String problem) {
+    return '設定ファイルを読み込めません：$problem';
+  }
+
+  @override
   String get statusSection => '状態';
 
   @override

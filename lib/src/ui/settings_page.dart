@@ -298,10 +298,50 @@ class _SettingsPageState extends State<SettingsPage>
         ),
         // 不用管"一个档案都没有"：`normalized()` 保证至少留一个（删光了它会
         // 补一个空的回来），所以下面那个下标一定落在列表里面。
-        body: TabBarView(
-          controller: _tabs,
-          children: [_profileTab(), _vadTab(theme)],
+        body: Column(
+          children: [
+            _externalConfigNotice(l10n),
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: [_profileTab(), _vadTab(theme)],
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  /// 启动时那份固定配置文件读不出来时的一条小字。
+  ///
+  /// **不阻断任何操作**：地址还能手填，只是得让用户知道"文件里那份没生效、
+  /// 为什么"，否则他会以为配置页显示的地址就是文件里写的那个。
+  Widget _externalConfigNotice(AppLocalizations l10n) {
+    final problem = widget.controller.externalConfigProblem;
+    if (problem == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 16,
+            color: theme.colorScheme.error,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.externalConfigFailed(problem),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

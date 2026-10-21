@@ -332,6 +332,15 @@ class ProfileEditorState extends State<ProfileEditor> {
               label: l10n.tokenLabel,
               hint: l10n.tokenHint,
             ),
+            const SizedBox(height: 8),
+            // 固定文件那条路是"部署方一次配好、所有人装上就能用"的入口，
+            // 所以它紧跟在三个输入框下面 —— 手填的人一眼看到还有这种填法。
+            Text(
+              l10n.externalConfigHint,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),

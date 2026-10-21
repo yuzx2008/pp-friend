@@ -11,6 +11,7 @@ import '../brain/brain_client.dart';
 import '../brain/voice_directives.dart';
 import '../config/assistant_config.dart';
 import '../config/config_store.dart';
+import '../config/external_config.dart';
 import '../storage/app_dirs.dart';
 import '../storage/avatar_store.dart';
 import '../storage/file_message_store.dart';
@@ -120,6 +121,7 @@ class ConversationController extends ChangeNotifier {
     AppDirResolver? appDir,
     AvatarStore? avatars,
     SegmenterFactory? segmenterFactory,
+    ExternalConfigReader? externalConfig,
   }) : _engine = engine ?? VoiceEngine.instance,
        _store = store ?? ConfigStore(),
        _brainFactory =
@@ -127,7 +129,8 @@ class ConversationController extends ChangeNotifier {
        _injectedHistory = history,
        _injectedAvatars = avatars,
        _appDirResolver = appDir ?? resolveAppDir,
-       _segmenterFactory = segmenterFactory ?? _defaultSegmenterFactory;
+       _segmenterFactory = segmenterFactory ?? _defaultSegmenterFactory,
+       _externalConfigReader = externalConfig ?? readExternalConfig;
 
   static Future<Segmenter> _defaultSegmenterFactory({
     required int sampleRate,
@@ -157,6 +160,14 @@ class ConversationController extends ChangeNotifier {
   final AvatarStore? _injectedAvatars;
   final AppDirResolver _appDirResolver;
   final SegmenterFactory _segmenterFactory;
+
+  /// 读手机上那份固定配置文件。默认就那一个路径，测试注入假的来避开磁盘。
+  final ExternalConfigReader _externalConfigReader;
+
+  /// 启动时那次导入失败的原因。**只为诊断，不阻断使用** —— 用户还能在
+  /// 设置页里手填，所以它不该拦着任何东西，设置页拿它显示一条小字。
+  String? get externalConfigProblem => _externalConfigProblem;
+  String? _externalConfigProblem;
 
   MessageStore? _history;
 
@@ -223,10 +234,38 @@ class ConversationController extends ChangeNotifier {
     _config = (await _store.load()).normalized();
     await _syncRuntimes();
     await refreshVoiceprint();
+    // 先把手机上那份固定配置导进来，再去读历史：它是 brain 地址的来源，
+    // 早点定下来，后面这轮就是用这份地址连的。
+    await _importExternalConfig();
     // 先把聚焦档案的历史读出来，这样一打开 App 就看得见上次聊到哪儿了，
     // 不用等到点"开始对话"。
     await focused?.load();
     notifyListeners();
+  }
+
+  /// 启动时从手机上的固定文件导一次 brain 配置。
+  ///
+  /// 文件在、也解析得出来 —— 它的三个值**覆盖当前聚焦档案**并落盘。这是有意
+  /// 的单向优先：那份文件是"部署方给的地址"，比上一轮遗留在 App 里的新，所以
+  /// 每次启动都以它为准。App 里改过的值照样会存下来，只是下次启动又被文件
+  /// 覆盖 —— 想让改动生效，就改文件或者把文件挪走。
+  ///
+  /// 文件不在、读不出来 —— 什么都不做，安静回落。**一个可选文件绝不该让 App
+  /// 起不来**：原因记在 [externalConfigProblem] 里，设置页会小字说出来。
+  Future<void> _importExternalConfig() async {
+    final read = await _externalConfigReader();
+    final problem = read.problem;
+    if (problem != null) {
+      _externalConfigProblem = problem;
+      _safeLog('⚠️ 配置文件读不出来：$problem');
+      return;
+    }
+    final brain = read.brain;
+    if (brain == null) return;
+
+    // 用 `copyWith(brain:)` 的语义："把聚焦那个档案的 brain 换掉"。
+    // 其它档案一个都不动 —— 文件描述的是"这一套部署"，不是所有档案。
+    await updateConfig(_config.copyWith(brain: brain));
   }
 
   Future<void> updateConfig(AssistantConfig config) async {
