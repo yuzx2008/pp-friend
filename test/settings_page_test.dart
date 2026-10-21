@@ -40,8 +40,11 @@ Future<(ConversationController, FakeAvatarStore)> _boot() async {
 }
 
 /// 要多一个假引擎的时候用它 —— 断言"配置有没有真的推到原生"需要拿到它。
+///
+/// `withProfiles: false` 留给"配置还没读回来"那条路：读盘失败时 controller
+/// 就停在 `profiles` 为空的默认配置上，一个档案都没有。
 Future<(ConversationController, FakeAvatarStore, FakeVoiceEngine)>
-_bootFull() async {
+_bootFull({bool withProfiles = true}) async {
   final avatars = FakeAvatarStore();
   final engine = FakeVoiceEngine();
   final controller = ConversationController(
@@ -55,7 +58,7 @@ _bootFull() async {
       required AssistantConfig config,
     }) async => FakeSegmenter(),
   );
-  await controller.updateConfig(_twoProfiles());
+  if (withProfiles) await controller.updateConfig(_twoProfiles());
   return (controller, avatars, engine);
 }
 
@@ -234,5 +237,24 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('A'), findsWidgets, reason: '页面照常，chip 上退回那个字');
     expect(avatars.files, isEmpty);
+  });
+
+  testWidgets('档案列表还空着的时候，配置页照样渲染得出来', (tester) async {
+    // 配置是异步读的，读盘失败（存储插件读不出来）时 controller 会一直停在
+    // 那份 `profiles` 为空的默认配置上。以前这里对空列表取
+    // `clamp(0, length - 1)`，也就是 `clamp(0, -1)` —— 下界大于上界，Dart 直接
+    // 抛 ArgumentError，整页 build 失败：用户点进配置看到的就是一片空白，
+    // 连"是被谁拦住了"都看不出来。
+    final (controller, _, _) = await _bootFull(withProfiles: false);
+    addTearDown(controller.dispose);
+    expect(controller.config.profiles, isEmpty, reason: '这就是读配置失败后的样子');
+
+    await _pump(tester, controller);
+
+    expect(tester.takeException(), isNull);
+    // 兜底补出来的那个空档案是可编辑的：三个 brain 输入框都在。
+    expect(_field('Base URL'), findsOneWidget);
+    expect(_field('brain_id'), findsOneWidget);
+    expect(_field('Bearer token'), findsOneWidget);
   });
 }

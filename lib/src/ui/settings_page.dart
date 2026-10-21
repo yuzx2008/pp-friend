@@ -95,11 +95,30 @@ class _SettingsPageState extends State<SettingsPage>
     super.dispose();
   }
 
-  List<Profile> get _profiles => widget.controller.config.profiles;
+  /// 配置读不出来时兜底的那一份（见 [_config]）。算一次就存着，别每次 build 现算。
+  AssistantConfig? _emptyFallback;
+
+  /// 这一屏认的那份配置。
+  ///
+  /// **只要 `profiles` 是空的，就用 `normalized()` 兜一个空档案出来。** 配置是
+  /// 异步读的，读盘失败（存储坏了、插件读不出来）时 `_config` 会一直停在
+  /// `const AssistantConfig()` 上，而它的 `profiles` 是空的 —— 那时候按下标去取
+  /// 就是 `clamp(0, -1)`：下界大于上界，Dart 直接抛，整页 build 失败。用户看到
+  /// 的就是"点配置进去一片空白"，连是被谁拦住了都看不出来。
+  ///
+  /// `normalized()` 补出来的那个档案**每次都随机一个新 id**，所以结果存在字段里：
+  /// 每次 build 现算的话，编辑器会被判定成"换了一个档案"而反复重填输入框。
+  AssistantConfig get _config {
+    final live = widget.controller.config;
+    if (live.profiles.isNotEmpty) return live;
+    return _emptyFallback ??= live.normalized();
+  }
+
+  List<Profile> get _profiles => _config.profiles;
 
   int _indexOfFocused() {
     final index = _profiles.indexWhere(
-      (p) => p.id == widget.controller.config.focusedProfileId,
+      (p) => p.id == _config.focusedProfileId,
     );
     return index < 0 ? 0 : index;
   }
@@ -288,7 +307,9 @@ class _SettingsPageState extends State<SettingsPage>
   }
 
   Widget _profileTab() {
-    final profile = _profiles[_index.clamp(0, _profiles.length - 1)];
+    // `_config` 保证列表非空，`_index` 也保证落在列表里面，所以直接取就行 ——
+    // 原来那个 `clamp(0, length - 1)` 在空列表上正是白屏的凶手。
+    final profile = _profiles[_index];
     return Column(
       children: [
         _profileTabs(),
